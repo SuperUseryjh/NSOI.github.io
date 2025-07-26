@@ -23,12 +23,29 @@
         ::-webkit-scrollbar-thumb:hover {
             background: #63b3ed; /* 鼠标悬停时的颜色 */
         }
+        /* 连接状态圆点样式 */
+        .connection-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+        .dot-yellow { background-color: #fbbf24; } /* 黄色 */
+        .dot-green { background-color: #34d399; } /* 绿色 */
+        .dot-red { background-color: #ef4444; } /* 红色 */
     </style>
 </head>
 <body class="bg-gray-900 text-gray-100 min-h-screen flex flex-col font-mono">
     <!-- 头部区域 - 科技感设计 -->
-    <header class="bg-gray-800 text-blue-300 py-4 text-center shadow-lg rounded-b-xl border-b-2 border-blue-500">
+    <header class="bg-gray-800 text-blue-300 py-4 text-center shadow-lg rounded-b-xl border-b-2 border-blue-500 relative">
         <h1 class="text-4xl font-bold tracking-wider animate-pulse">NSOI 出题组</h1>
+        <!-- 连接状态指示器 -->
+        <div class="absolute top-4 right-4 flex items-center text-sm">
+            <span id="connection-dot" class="connection-dot dot-yellow"></span>
+            <span id="connection-status" class="text-gray-400">Connecting</span>
+        </div>
     </header>
 
     <!-- 导航栏 - 科技感设计 -->
@@ -42,7 +59,6 @@
 
     <!-- 主内容区域 -->
     <main class="flex-grow container mx-auto p-4 sm:p-6 lg:p-8">
-        <!-- 移除 transform hover:scale-105 -->
         <div class="bg-gray-800 rounded-xl shadow-2xl p-8 mb-6 border border-blue-600 transition duration-300 ease-in-out">
             <h2 class="text-3xl font-bold text-blue-400 mb-6 text-center">关于我们</h2>
             <p class="leading-relaxed text-gray-200 text-lg">NSOI 出题组致力于为信息学竞赛提供高质量的题目和专业的技术支持。我们的团队成员来自全国各地，具有丰富的出题经验和扎实的专业知识。</p>
@@ -53,5 +69,57 @@
     <footer class="bg-gray-800 text-blue-400 py-4 text-center mt-auto shadow-inner rounded-t-xl border-t-2 border-blue-500">
         <p class="text-sm tracking-wide">&copy; 2025 NSOI 出题组 - System Online</p>
     </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            const connectionDot = document.getElementById('connection-dot');
+            const connectionStatus = document.getElementById('connection-status');
+
+            // !!! IMPORTANT: Replace 'YOUR_CLOUDFLARE_WORKER_URL' with the actual URL of your Cloudflare Worker !!!
+            // Example: const workerBaseUrl = 'https://your-worker-name.your-username.workers.dev';
+            const workerBaseUrl = 'https://news.nsoi.tech';
+            const aliveApiUrl = `${workerBaseUrl}/api/alive`;
+
+            // Function to check connection status
+            const checkConnectionStatus = async () => {
+                connectionDot.classList.remove('dot-green', 'dot-red');
+                connectionDot.classList.add('dot-yellow');
+                connectionStatus.textContent = 'Connecting';
+                connectionStatus.classList.remove('text-green-400', 'text-red-400');
+                connectionStatus.classList.add('text-gray-400');
+
+                try {
+                    const response = await fetch(aliveApiUrl, { signal: AbortSignal.timeout(5000) }); // Set 5 second timeout
+                    if (response.ok) {
+                        connectionDot.classList.remove('dot-yellow', 'dot-red');
+                        connectionDot.classList.add('dot-green');
+                        connectionStatus.textContent = 'Connected';
+                        connectionStatus.classList.remove('text-gray-400', 'text-red-400');
+                        connectionStatus.classList.add('text-green-400');
+                    } else {
+                        connectionDot.classList.remove('dot-yellow', 'dot-green');
+                        connectionDot.classList.add('dot-red');
+                        connectionStatus.textContent = 'Connection Error';
+                        connectionStatus.classList.remove('text-gray-400', 'text-green-400');
+                        connectionStatus.classList.add('text-red-400');
+                        console.error('Worker alive check failed:', response.status, response.statusText);
+                    }
+                } catch (error) {
+                    connectionDot.classList.remove('dot-yellow', 'dot-green');
+                    connectionDot.classList.add('dot-red');
+                    connectionStatus.textContent = 'Connection Error';
+                    connectionStatus.classList.remove('text-gray-400', 'text-green-400');
+                    connectionStatus.classList.add('text-red-400');
+                    console.error('Worker alive check network error:', error);
+                }
+            };
+
+            // Check connection status immediately on page load
+            checkConnectionStatus();
+
+            // Check connection status every 5 seconds
+            setInterval(checkConnectionStatus, 5000);
+        });
+    </script>
 </body>
 </html>
