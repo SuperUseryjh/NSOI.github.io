@@ -23,12 +23,29 @@
         ::-webkit-scrollbar-thumb:hover {
             background: #63b3ed; /* 鼠标悬停时的颜色 */
         }
+        /* 连接状态圆点样式 */
+        .connection-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+        .dot-yellow { background-color: #fbbf24; } /* 黄色 */
+        .dot-green { background-color: #34d399; } /* 绿色 */
+        .dot-red { background-color: #ef4444; } /* 红色 */
     </style>
 </head>
 <body class="bg-gray-900 text-gray-100 min-h-screen flex flex-col font-mono">
     <!-- 头部区域 - 科技感设计 -->
-    <header class="bg-gray-800 text-blue-300 py-4 text-center shadow-lg rounded-b-xl border-b-2 border-blue-500">
+    <header class="bg-gray-800 text-blue-300 py-4 text-center shadow-lg rounded-b-xl border-b-2 border-blue-500 relative">
         <h1 class="text-4xl font-bold tracking-wider animate-pulse">NSOI 出题组</h1>
+        <!-- 连接状态指示器 -->
+        <div class="absolute top-4 right-4 flex items-center text-sm">
+            <span id="connection-dot" class="connection-dot dot-yellow"></span>
+            <span id="connection-status" class="text-gray-400">Connecting</span>
+        </div>
     </header>
 
     <!-- 导航栏 - 科技感设计 -->
@@ -59,40 +76,89 @@
     <script>
         document.addEventListener('DOMContentLoaded', async () => {
             const newsContentElement = document.getElementById('latest-news-content');
-            // !!! 重要：将 'YOUR_CLOUDFLARE_WORKER_URL' 替换为您的Cloudflare Worker的实际URL !!!
-            // 例如: const workerUrl = 'https://your-worker-name.your-username.workers.dev/api/news';
-            const workerUrl = 'https://news.nsoi.tech/api/news';
+            const connectionDot = document.getElementById('connection-dot');
+            const connectionStatus = document.getElementById('connection-status');
 
-            if (newsContentElement) {
-                newsContentElement.innerHTML = '<p class="text-gray-400">正在加载最新消息...</p>'; // 显示加载状态
+            // !!! IMPORTANT: Replace 'YOUR_CLOUDFLARE_WORKER_URL' with the actual URL of your Cloudflare Worker !!!
+            // Example: const workerBaseUrl = 'https://your-worker-name.your-username.workers.dev';
+            const workerBaseUrl = 'https://news.nsoi.tech';
+            const newsApiUrl = `${workerBaseUrl}/api/news`;
+            const aliveApiUrl = `${workerBaseUrl}/api/alive`;
+
+            // Function to fetch latest news
+            const fetchLatestNews = async () => {
+                if (newsContentElement) {
+                    newsContentElement.innerHTML = '<p class="text-gray-400">正在加载最新消息...</p>'; // Show loading state
+
+                    try {
+                        const response = await fetch(newsApiUrl);
+                        if (response.ok) {
+                            const newsItems = await response.json(); // Expecting a JSON array
+
+                            if (Array.isArray(newsItems) && newsItems.length > 0) {
+                                newsContentElement.innerHTML = ''; // Clear loading state
+                                newsItems.forEach(item => {
+                                    const newsParagraph = document.createElement('p');
+                                    newsParagraph.className = 'leading-relaxed text-gray-200 text-lg border-b border-gray-700 pb-2 mb-2 last:border-b-0 last:pb-0 last:mb-0'; // Add some styling
+                                    newsParagraph.innerHTML = `<span class="text-blue-300 font-semibold">${item.date}：</span>${item.content}`;
+                                    newsContentElement.appendChild(newsParagraph);
+                                });
+                            } else {
+                                newsContentElement.innerHTML = '<p class="text-gray-400">目前没有最新消息。</p>';
+                            }
+                        } else {
+                            // If response is not successful, show error message
+                            newsContentElement.innerHTML = `<p class="text-red-400">加载失败: ${response.status} ${response.statusText}</p>`;
+                            console.error('Failed to fetch news:', response.status, response.statusText);
+                        }
+                    } catch (error) {
+                        // Catch network or other errors
+                        newsContentElement.innerHTML = '<p class="text-red-400">加载最新消息时发生网络错误或CORS问题。请检查Worker URL和CORS设置。</p>';
+                        console.error('Error fetching news:', error);
+                    }
+                }
+            };
+
+            // Function to check connection status
+            const checkConnectionStatus = async () => {
+                connectionDot.classList.remove('dot-green', 'dot-red');
+                connectionDot.classList.add('dot-yellow');
+                connectionStatus.textContent = 'Connecting';
+                connectionStatus.classList.remove('text-green-400', 'text-red-400');
+                connectionStatus.classList.add('text-gray-400');
 
                 try {
-                    const response = await fetch(workerUrl);
+                    const response = await fetch(aliveApiUrl, { signal: AbortSignal.timeout(5000) }); // Set 5 second timeout
                     if (response.ok) {
-                        const newsItems = await response.json(); // 期望返回JSON数组
-
-                        if (Array.isArray(newsItems) && newsItems.length > 0) {
-                            newsContentElement.innerHTML = ''; // 清空加载状态
-                            newsItems.forEach(item => {
-                                const newsParagraph = document.createElement('p');
-                                newsParagraph.className = 'leading-relaxed text-gray-200 text-lg border-b border-gray-700 pb-2 mb-2 last:border-b-0 last:pb-0 last:mb-0'; // 添加一些样式
-                                newsParagraph.innerHTML = `<span class="text-blue-300 font-semibold">${item.date}：</span>${item.content}`;
-                                newsContentElement.appendChild(newsParagraph);
-                            });
-                        } else {
-                            newsContentElement.innerHTML = '<p class="text-gray-400">目前没有最新消息。</p>';
-                        }
+                        connectionDot.classList.remove('dot-yellow', 'dot-red');
+                        connectionDot.classList.add('dot-green');
+                        connectionStatus.textContent = 'Connected';
+                        connectionStatus.classList.remove('text-gray-400', 'text-red-400');
+                        connectionStatus.classList.add('text-green-400');
                     } else {
-                        // 如果响应不成功，显示错误信息
-                        newsContentElement.innerHTML = `<p class="text-red-400">加载失败: ${response.status} ${response.statusText}</p>`;
-                        console.error('Failed to fetch news:', response.status, response.statusText);
+                        connectionDot.classList.remove('dot-yellow', 'dot-green');
+                        connectionDot.classList.add('dot-red');
+                        connectionStatus.textContent = 'Connection Error';
+                        connectionStatus.classList.remove('text-gray-400', 'text-green-400');
+                        connectionStatus.classList.add('text-red-400');
+                        console.error('Worker alive check failed:', response.status, response.statusText);
                     }
                 } catch (error) {
-                    // 捕获网络或其他错误
-                    newsContentElement.innerHTML = '<p class="text-red-400">加载最新消息时发生网络错误或CORS问题。请检查Worker URL和CORS设置。</p>';
-                    console.error('Error fetching news:', error);
+                    connectionDot.classList.remove('dot-yellow', 'dot-green');
+                    connectionDot.classList.add('dot-red');
+                    connectionStatus.textContent = 'Connection Error';
+                    connectionStatus.classList.remove('text-gray-400', 'text-green-400');
+                    connectionStatus.classList.add('text-red-400');
+                    console.error('Worker alive check network error:', error);
                 }
-            }
+            };
+
+            // Check connection status and fetch news immediately on page load
+            checkConnectionStatus();
+            fetchLatestNews();
+
+            // Check connection status every 5 seconds
+            setInterval(checkConnectionStatus, 5000);
         });
     </script>
 </body>
